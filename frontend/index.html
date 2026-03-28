@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Agriculture Advisor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand-block">
+        <div class="brand-mark">AI</div>
+        <div>
+          <p class="eyebrow">Production demo</p>
+          <h1>Smart Agriculture Advisor</h1>
+        </div>
+      </div>
+
+      <button id="new-chat-btn" class="new-chat-btn" type="button">＋ New advisory chat</button>
+
+      <section class="sidebar-section">
+        <p class="section-label">Suggested prompts</p>
+        <div class="prompt-list">
+          <button class="prompt-card quick-chip" type="button" data-prompt="I have tomatoes in Bekaa at flowering stage, and the leaves show yellow spots. What might be causing this, how much water do I need this week for 800 square meters, and what fertilizer should I consider?">
+            Tomato disease + irrigation + fertilizer
+          </button>
+          <button class="prompt-card quick-chip" type="button" data-prompt="What can I plant in Bekaa in early spring if water is limited and the soil is medium texture?">
+            Crop planning with limited water
+          </button>
+          <button class="prompt-card quick-chip" type="button" data-prompt="How much water does 1200 square meters of grapes need this week near the coast?">
+            Weekly irrigation estimate for grapes
+          </button>
+        </div>
+      </section>
+
+      <section class="sidebar-section">
+        <p class="section-label">System overview</p>
+        <div class="status-card-group">
+          <article class="mini-card">
+            <span class="mini-title">Route</span>
+            <div id="route-summary" class="pill-row compact-pills">
+              <span class="pill muted-pill">Waiting</span>
+            </div>
+          </article>
+          <article class="mini-card">
+            <span class="mini-title">Session</span>
+            <strong id="session-id">Not started</strong>
+          </article>
+          <article class="mini-card">
+            <span class="mini-title">Status</span>
+            <p id="status">Ready for a new request.</p>
+          </article>
+        </div>
+      </section>
+    </aside>
+
+    <main class="main-area">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Chat workspace</p>
+          <h2>Ask grounded farming questions</h2>
+        </div>
+        <div class="topbar-meta">
+          <span class="meta-chip"><span class="meta-dot"></span><span id="header-status">Ready</span></span>
+          <span class="meta-chip">Accent #8CC7C4</span>
+        </div>
+      </header>
+
+      <section id="messages" class="messages" aria-live="polite">
+        <article class="message assistant intro-message">
+          <div class="message-avatar assistant-avatar">AI</div>
+          <div class="message-body assistant-body">
+            <div class="message-header">
+              <span class="sender-name">Farm Copilot</span>
+              <span class="sender-role">LangGraph supervisor + specialists</span>
+            </div>
+            <div class="rendered-answer">
+              <p>Describe the crop, region, growth stage, area, symptoms, or soil context. The system can route across pest reasoning, irrigation planning, and soil or fertilizer support.</p>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <div id="route-pills" class="route-pills">
+        <span class="pill muted-pill">Multi-agent</span>
+        <span class="pill active-pill">Ready</span>
+      </div>
+
+      <form id="chat-form" class="composer" autocomplete="off">
+        <div class="composer-inner">
+          <textarea id="message" placeholder="Message Smart Agriculture Advisor..." required></textarea>
+          <div class="composer-actions">
+            <button type="button" id="example-btn" class="text-btn">Use example</button>
+            <button type="submit" class="send-btn">Send</button>
+          </div>
+        </div>
+      </form>
+    </main>
+
+    <aside class="details-panel">
+      <section class="details-card">
+        <div class="details-header">
+          <span>Sources</span>
+          <strong id="source-count">0</strong>
+        </div>
+        <div id="sources" class="source-list empty-state">Retrieved source snippets will appear here.</div>
+      </section>
+
+      <section class="details-card">
+        <div class="details-header">
+          <span>Debug trace</span>
+          <strong>Live</strong>
+        </div>
+        <pre id="debug-trace" class="debug-trace">No trace yet.</pre>
+      </section>
+    </aside>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
