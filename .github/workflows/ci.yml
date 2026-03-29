@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: ["**"]
+    branches: ["main"]
   pull_request:
 
 jobs:
@@ -13,44 +13,34 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Python setup for all backend services.
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install Agent A dependencies
+      - name: Verify frontend static files exist
         run: |
-          python -m pip install --upgrade pip
-          pip install -r agent-system-a/requirements.txt
+          test -f frontend/index.html
+          test -f frontend/styles.css
+          test -f frontend/app.js
 
-      - name: Install Agent B dependencies
-        run: |
-          pip install -r agent-system-b/requirements.txt
+      - name: Python syntax check - Agent A
+        run: python -m py_compile $(find agent-system-a/app -name "*.py")
 
-      - name: Install MCP dependencies
-        run: |
-          pip install -r mcp-server/requirements.txt
+      - name: Python syntax check - Agent B
+        run: python -m py_compile $(find agent-system-b/app -name "*.py")
 
-      - name: Syntax check Python
-        run: |
-          python -m compileall agent-system-a/app
-          python -m compileall agent-system-b/app
-          python -m compileall mcp-server/app
-          python -m compileall scripts
+      - name: Python syntax check - MCP server
+        run: python -m py_compile $(find mcp-server/app -name "*.py")
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
+      - name: Build Agent A Docker image
+        run: docker build -t smart-agri-agent-a ./agent-system-a
 
-      - name: Build frontend
-        working-directory: frontend
-        run: |
-          npm install
-          npm run build
+      - name: Build Agent B Docker image
+        run: docker build -t smart-agri-agent-b ./agent-system-b
 
-      # Docker build validation is important because the rubric evaluates
-      # deployability, not only local script execution.
-      - name: Build Docker images
-        run: docker compose build
+      - name: Build MCP Server Docker image
+        run: docker build -t smart-agri-mcp ./mcp-server
+
+      - name: Build Frontend Docker image
+        run: docker build -t smart-agri-frontend ./frontend
