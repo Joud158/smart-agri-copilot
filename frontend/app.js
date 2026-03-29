@@ -1,301 +1,529 @@
-const form = document.getElementById('chat-form');
-const messageEl = document.getElementById('message');
-const statusEl = document.getElementById('status');
-const messagesEl = document.getElementById('messages');
-const routePillsEl = document.getElementById('route-pills');
-const routeSummaryEl = document.getElementById('route-summary');
-const sessionIdEl = document.getElementById('session-id');
-const sourceCountEl = document.getElementById('source-count');
-const sourcesEl = document.getElementById('sources');
-const debugTraceEl = document.getElementById('debug-trace');
-const headerStatusEl = document.getElementById('header-status');
-const exampleBtn = document.getElementById('example-btn');
-const newChatBtn = document.getElementById('new-chat-btn');
-const quickChips = document.querySelectorAll('.quick-chip');
-
 const API_BASE = 'http://localhost:8101';
-let sessionId = null;
+const STORAGE_KEY = 'smart_agri_frontend_v5';
+const PANEL_KEY = 'smart_agri_panel_state_v5';
 
-const EXAMPLE_PROMPT = 'I have tomatoes in Bekaa at flowering stage, and the leaves show yellow spots. What might be causing this, how much water do I need this week for 800 square meters, and what fertilizer should I consider?';
+const els = {
+  historyPanel: document.getElementById('historyPanel'),
+  sourcesPanel: document.getElementById('sourcesPanel'),
+  openLeftBtn: document.getElementById('openLeftBtn'),
+  openRightBtn: document.getElementById('openRightBtn'),
+  closeLeftBtn: document.getElementById('closeLeftBtn'),
+  closeRightBtn: document.getElementById('closeRightBtn'),
+  statusPill: document.getElementById('statusPill'),
+  historyList: document.getElementById('historyList'),
+  historySearch: document.getElementById('historySearch'),
+  newChatBtn: document.getElementById('newChatBtn'),
+  messages: document.getElementById('messages'),
+  input: document.getElementById('messageInput'),
+  sendBtn: document.getElementById('sendBtn'),
+  micBtn: document.getElementById('micBtn'),
+  composerHint: document.getElementById('composerHint'),
+  sourcesList: document.getElementById('sourcesList'),
+  sessionId: document.getElementById('sessionId'),
+  routeText: document.getElementById('routeText'),
+  traceList: document.getElementById('traceList'),
+  copyTraceBtn: document.getElementById('copyTraceBtn'),
+  previewBanner: document.getElementById('previewBanner'),
+  clearPreviewBtn: document.getElementById('clearPreviewBtn'),
+};
 
-exampleBtn.addEventListener('click', () => {
-  messageEl.value = EXAMPLE_PROMPT;
-  messageEl.focus();
-});
+const state = {
+  activeId: null,
+  conversations: [],
+  recognition: null,
+  latestAnswer: '',
+  loadedExample: '',
+  panels: { left: true, right: true },
+};
 
-newChatBtn.addEventListener('click', () => resetChat());
+function uid() {
+  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+}
 
-quickChips.forEach((chip) => {
-  chip.addEventListener('click', () => {
-    messageEl.value = chip.dataset.prompt || '';
-    messageEl.focus();
-  });
-});
+function compactText(text = '') {
+  return String(text).replace(/mÂ²/g, 'm²').replace(/\s+/g, ' ').trim();
+}
 
-form.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const message = messageEl.value.trim();
-  if (!message) return;
+function normalizeAnswerText(text = '') {
+  return String(text)
+    .replace(/\r/g, '')
+    .replace(/mÂ²/g, 'm²')
+    .replace(/\u00A0/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/\s+###\s+/g, '\n\n### ')
+    .replace(/\s+##\s+/g, '\n\n## ')
+    .replace(/\s+-\s+/g, '\n- ')
+    .trim();
+}
 
-  appendMessage({ role: 'user', label: 'You', text: message });
-  messageEl.value = '';
-  headerStatusEl.textContent = 'Thinking';
-  statusEl.textContent = 'Sending request to Agent System A...';
-  const loadingId = appendLoadingMessage();
+function setStatus(text) {
+  els.statusPill.textContent = text;
+}
+
+function saveConversations() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ conversations: state.conversations, activeId: state.activeId }));
+}
+
+function savePanels() {
+  localStorage.setItem(PANEL_KEY, JSON.stringify(state.panels));
+}
+
+function loadState() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    state.conversations = Array.isArray(saved.conversations) ? saved.conversations : [];
+    state.activeId = saved.activeId || null;
+  } catch {
+    state.conversations = [];
+    state.activeId = null;
+  }
 
   try {
-    const res = await fetch(`${API_BASE}/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, session_id: sessionId }),
-    });
-
-    const data = await res.json();
-    removeMessage(loadingId);
-
-    if (!res.ok) {
-      throw new Error(data.detail || 'Request failed.');
-    }
-
-    sessionId = data.session_id;
-    sessionIdEl.textContent = truncateMiddle(sessionId, 24);
-    headerStatusEl.textContent = 'Responded';
-    statusEl.textContent = `Completed with route: ${(data.route || []).join(' → ') || 'default'}`;
-
-    appendMessage({
-      role: 'assistant',
-      label: 'Farm Copilot',
-      subtitle: 'Grounded answer',
-      html: renderAnswer(data.answer, data.disclaimer),
-    });
-
-    renderRoutes(data.route || []);
-    renderSources(data.sources || []);
-    renderDebugTrace(data.debug_trace || []);
-  } catch (error) {
-    removeMessage(loadingId);
-    headerStatusEl.textContent = 'Error';
-    statusEl.textContent = `Error: ${error.message}`;
-    appendMessage({
-      role: 'assistant',
-      label: 'System',
-      subtitle: 'Request failed',
-      text: `The request failed. ${error.message}. Check whether Agent A is reachable and review its logs if needed.`,
-      error: true,
-    });
-  }
-});
-
-function resetChat() {
-  sessionId = null;
-  sessionIdEl.textContent = 'Not started';
-  statusEl.textContent = 'Ready for a new request.';
-  headerStatusEl.textContent = 'Ready';
-  routePillsEl.innerHTML = '<span class="pill muted-pill">Multi-agent</span><span class="pill active-pill">Ready</span>';
-  routeSummaryEl.innerHTML = '<span class="pill muted-pill">Waiting</span>';
-  sourceCountEl.textContent = '0';
-  sourcesEl.className = 'source-list empty-state';
-  sourcesEl.textContent = 'Retrieved source snippets will appear here.';
-  debugTraceEl.textContent = 'No trace yet.';
-  messagesEl.innerHTML = `
-    <article class="message assistant intro-message">
-      <div class="message-avatar assistant-avatar">AI</div>
-      <div class="message-body assistant-body">
-        <div class="message-header">
-          <span class="sender-name">Farm Copilot</span>
-          <span class="sender-role">LangGraph supervisor + specialists</span>
-        </div>
-        <div class="rendered-answer">
-          <p>Describe the crop, region, growth stage, area, symptoms, or soil context. The system can route across pest reasoning, irrigation planning, and soil or fertilizer support.</p>
-        </div>
-      </div>
-    </article>
-  `;
-  messageEl.focus();
+    const savedPanels = JSON.parse(localStorage.getItem(PANEL_KEY) || '{}');
+    if (typeof savedPanels.left === 'boolean') state.panels.left = savedPanels.left;
+    if (typeof savedPanels.right === 'boolean') state.panels.right = savedPanels.right;
+  } catch {}
 }
 
-function appendMessage({ role, label, subtitle = '', text = '', html = '', error = false }) {
-  const article = document.createElement('article');
-  article.className = `message ${role}`;
-  article.dataset.messageId = crypto.randomUUID();
-
-  const avatar = document.createElement('div');
-  avatar.className = `message-avatar ${role === 'assistant' ? 'assistant-avatar' : 'user-avatar'}`;
-  avatar.textContent = role === 'assistant' ? 'AI' : 'You';
-
-  const body = document.createElement('div');
-  body.className = `message-body ${role === 'assistant' ? 'assistant-body' : 'user-body'}`;
-  if (error) {
-    body.style.borderColor = '#f1caca';
-    body.style.background = '#fff8f8';
-  }
-
-  const header = document.createElement('div');
-  header.className = 'message-header';
-  header.innerHTML = `
-    <span class="sender-name">${escapeHtml(label)}</span>
-    <span class="sender-role">${escapeHtml(subtitle || (role === 'assistant' ? 'Grounded answer' : 'Prompt'))}</span>
-  `;
-
-  const content = document.createElement('div');
-  content.className = 'rendered-answer';
-  content.innerHTML = html || `<p>${escapeHtml(text)}</p>`;
-
-  body.appendChild(header);
-  body.appendChild(content);
-  article.appendChild(avatar);
-  article.appendChild(body);
-  messagesEl.appendChild(article);
-  messagesEl.scrollTop = messagesEl.scrollHeight;
-  return article.dataset.messageId;
+function applyPanelState() {
+  document.body.classList.toggle('left-open', state.panels.left);
+  document.body.classList.toggle('left-closed', !state.panels.left);
+  document.body.classList.toggle('right-open', state.panels.right);
+  document.body.classList.toggle('right-closed', !state.panels.right);
 }
 
-function appendLoadingMessage() {
-  const id = crypto.randomUUID();
-  const article = document.createElement('article');
-  article.className = 'message assistant';
-  article.dataset.messageId = id;
-  article.innerHTML = `
-    <div class="message-avatar assistant-avatar">AI</div>
-    <div class="message-body assistant-body">
-      <div class="message-header">
-        <span class="sender-name">Farm Copilot</span>
-        <span class="sender-role">Coordinating specialists</span>
-      </div>
-      <div class="rendered-answer"><p class="loading-dots">Thinking</p></div>
-    </div>
-  `;
-  messagesEl.appendChild(article);
-  messagesEl.scrollTop = messagesEl.scrollHeight;
-  return id;
-}
-
-function removeMessage(id) {
-  if (!id) return;
-  const node = messagesEl.querySelector(`[data-message-id="${id}"]`);
-  if (node) node.remove();
-}
-
-function renderRoutes(routes) {
-  const normalized = Array.isArray(routes) ? routes : [];
-  routePillsEl.innerHTML = ['Multi-agent', ...normalized.map(capitalize)]
-    .map((route, index) => `<span class="pill ${index === 0 ? 'muted-pill' : 'active-pill'}">${escapeHtml(route)}</span>`)
-    .join('');
-
-  routeSummaryEl.innerHTML = normalized.length
-    ? normalized.map((route) => `<span class="pill">${escapeHtml(capitalize(route))}</span>`).join('')
-    : '<span class="pill muted-pill">No route reported</span>';
-}
-
-function renderSources(sources) {
-  if (!Array.isArray(sources) || !sources.length) {
-    sourceCountEl.textContent = '0';
-    sourcesEl.className = 'source-list empty-state';
-    sourcesEl.textContent = 'No source snippets returned for this message.';
-    return;
-  }
-
-  sourceCountEl.textContent = String(sources.length);
-  sourcesEl.className = 'source-list';
-  sourcesEl.innerHTML = sources.slice(0, 6).map((item) => {
-    const title = item.title && item.title !== 'Untitled' ? item.title : 'Retrieved source';
-    const path = item.source_path && item.source_path !== 'unknown' ? item.source_path : 'Local corpus';
-    const score = Number(item.score || 0).toFixed(3);
-    const snippet = shorten(item.text || '', 220);
-    return `
-      <article class="source-card">
-        <span class="source-title">${escapeHtml(title)}</span>
-        <div class="source-meta">${escapeHtml(path)} · score ${score}</div>
-        <div class="source-text">${escapeHtml(snippet)}</div>
-      </article>
-    `;
-  }).join('');
-}
-
-function renderDebugTrace(trace) {
-  if (Array.isArray(trace)) {
-    debugTraceEl.textContent = trace.join('\n');
-    return;
-  }
-  if (typeof trace === 'string' && trace.trim()) {
-    debugTraceEl.textContent = trace;
-    return;
-  }
-  debugTraceEl.textContent = 'No trace yet.';
-}
-
-function renderAnswer(answer = '', disclaimer = '') {
-  const safeText = normalizeAnswer(answer || '');
-  const lines = safeText.split('\n').map((line) => line.trim()).filter(Boolean);
-  const html = [];
-  let listOpen = false;
-
-  const closeList = () => {
-    if (listOpen) {
-      html.push('</ul>');
-      listOpen = false;
-    }
+function ensureActiveConversation() {
+  if (state.activeId && state.conversations.some(c => c.id === state.activeId)) return;
+  const conversation = {
+    id: uid(),
+    title: 'New chat',
+    createdAt: new Date().toLocaleString(),
+    sessionId: null,
+    route: [],
+    trace: [],
+    sources: [],
+    messages: [],
   };
-
-  lines.forEach((line) => {
-    if (/^###\s+/.test(line) || /^##\s+/.test(line)) {
-      closeList();
-      html.push(`<h4>${escapeHtml(line.replace(/^#+\s*/, ''))}</h4>`);
-      return;
-    }
-
-    if (/^-\s+/.test(line)) {
-      if (!listOpen) {
-        html.push('<ul>');
-        listOpen = true;
-      }
-      html.push(`<li>${escapeHtml(line.replace(/^-\s+/, ''))}</li>`);
-      return;
-    }
-
-    closeList();
-    html.push(`<p>${formatInline(line)}</p>`);
-  });
-
-  closeList();
-
-  if (disclaimer) {
-    html.push(`<p><strong>Disclaimer:</strong> ${escapeHtml(disclaimer)}</p>`);
-  }
-
-  return html.join('');
+  state.conversations.unshift(conversation);
+  state.activeId = conversation.id;
+  saveConversations();
 }
 
-function normalizeAnswer(text) {
-  return String(text).replace(/mÂ²/g, 'm²').replace(/\r/g, '').trim();
+function getActiveConversation() {
+  ensureActiveConversation();
+  return state.conversations.find(c => c.id === state.activeId);
 }
 
-function formatInline(text) {
-  const escaped = escapeHtml(text);
-  return escaped.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+function setInputValue(value, hint = '') {
+  els.input.value = value;
+  state.loadedExample = value;
+  els.previewBanner.classList.toggle('hidden', !value);
+  els.composerHint.textContent = hint || 'Edit the loaded example if needed, then press send.';
+  autoResize();
+  els.input.focus();
 }
 
-function escapeHtml(text) {
+function clearLoadedExample() {
+  state.loadedExample = '';
+  els.previewBanner.classList.add('hidden');
+  els.composerHint.textContent = 'Choose an example to preview it before sending, or type your own question.';
+}
+
+function getHistoryFilter() {
+  return (els.historySearch.value || '').trim().toLowerCase();
+}
+
+function escapeHtml(text = '') {
   return String(text)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
+    .replace(/'/g, '&#39;');
 }
 
-function truncateMiddle(text, maxLength) {
-  if (!text || text.length <= maxLength) return text || '';
-  const part = Math.floor((maxLength - 3) / 2);
-  return `${text.slice(0, part)}...${text.slice(-part)}`;
+function renderHistory() {
+  const filter = getHistoryFilter();
+  const items = state.conversations.filter(c => {
+    if (!filter) return true;
+    const messagesText = (c.messages || []).map(m => m.text || '').join(' ').toLowerCase();
+    return (c.title || '').toLowerCase().includes(filter) || messagesText.includes(filter);
+  });
+
+  if (!items.length) {
+    els.historyList.innerHTML = '<div class="empty-state-small">No conversations match that search.</div>';
+    return;
+  }
+
+  els.historyList.innerHTML = items.map(item => {
+    const last = item.messages?.[item.messages.length - 1]?.text || '';
+    const preview = compactText(last).slice(0, 64);
+    return `
+      <button class="history-item ${item.id === state.activeId ? 'active' : ''}" data-id="${item.id}">
+        <div class="history-item-title">${escapeHtml(item.title || 'New chat')}</div>
+        <div class="history-item-sub">${escapeHtml(preview || item.createdAt || '')}</div>
+      </button>
+    `;
+  }).join('');
+
+  els.historyList.querySelectorAll('.history-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.activeId = btn.dataset.id;
+      saveConversations();
+      renderAll();
+    });
+  });
 }
 
-function shorten(text, maxLength) {
-  const value = String(text || '').replace(/\s+/g, ' ').trim();
-  if (value.length <= maxLength) return value;
-  return `${value.slice(0, maxLength - 1)}…`;
+function stripMarkdown(text = '') {
+  return String(text)
+    .replace(/^#{1,6}\s*/gm, '')
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/^[-•]\s*/gm, '')
+    .trim();
 }
 
-function capitalize(value) {
-  return String(value || '').charAt(0).toUpperCase() + String(value || '').slice(1);
+function deriveSourceTitle(source) {
+  const explicit = compactText(source?.title || '');
+  if (explicit && !/^untitled$/i.test(explicit) && !/^source$/i.test(explicit)) return explicit;
+
+  const text = String(source?.text || '');
+  const headingMatch = text.match(/^#{1,6}\s*(.+)$/m);
+  if (headingMatch) return compactText(headingMatch[1]);
+
+  const firstSentence = compactText(stripMarkdown(text).split(/[.!?]/)[0] || 'Supporting source');
+  return firstSentence.slice(0, 80) || 'Supporting source';
 }
+
+function summarizeSource(source) {
+  const title = deriveSourceTitle(source);
+  const cleaned = compactText(stripMarkdown(source?.text || ''));
+  const snippet = cleaned.startsWith(title) ? cleaned.slice(title.length).trim() : cleaned;
+  return {
+    title,
+    snippet: (snippet || cleaned || 'Relevant supporting information used for this answer.').slice(0, 220),
+  };
+}
+
+function inlineFormat(text = '') {
+  return escapeHtml(text)
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>');
+}
+
+function markdownishToHtml(text = '') {
+  const source = normalizeAnswerText(text);
+  if (!source) return '<p>No answer returned.</p>';
+
+  const lines = source.split('\n');
+  const chunks = [];
+  let listItems = [];
+  let paragraph = [];
+
+  const flushList = () => {
+    if (!listItems.length) return;
+    chunks.push(`<ul>${listItems.map(item => `<li>${inlineFormat(item)}</li>`).join('')}</ul>`);
+    listItems = [];
+  };
+
+  const flushParagraph = () => {
+    if (!paragraph.length) return;
+    chunks.push(`<p>${inlineFormat(paragraph.join(' '))}</p>`);
+    paragraph = [];
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) {
+      flushList();
+      flushParagraph();
+      continue;
+    }
+
+    if (/^###\s+/.test(line)) {
+      flushList();
+      flushParagraph();
+      chunks.push(`<h3>${inlineFormat(line.replace(/^###\s+/, ''))}</h3>`);
+      continue;
+    }
+    if (/^##\s+/.test(line)) {
+      flushList();
+      flushParagraph();
+      chunks.push(`<h4>${inlineFormat(line.replace(/^##\s+/, ''))}</h4>`);
+      continue;
+    }
+    if (/^[-•]\s+/.test(line)) {
+      flushParagraph();
+      listItems.push(line.replace(/^[-•]\s+/, ''));
+      continue;
+    }
+
+    paragraph.push(line.replace(/^#+\s*/, ''));
+  }
+
+  flushList();
+  flushParagraph();
+  return chunks.join('');
+}
+
+function renderMessages() {
+  const conversation = getActiveConversation();
+  const messages = conversation.messages || [];
+  if (!messages.length) {
+    els.messages.innerHTML = `
+      <article class="message assistant">
+        <div class="avatar assistant-avatar">AI</div>
+        <div class="bubble-card">
+          <div class="message-head"><strong>Assistant</strong></div>
+          <div class="message-body">
+            <p>Ask about crops, symptoms, irrigation, soil interpretation, or fertilizer guidance. Choose an example to preview it before sending, or type your own question below.</p>
+          </div>
+        </div>
+      </article>
+    `;
+    return;
+  }
+
+  els.messages.innerHTML = '';
+  messages.forEach(message => {
+    const template = document.getElementById(message.role === 'assistant' ? 'assistantMessageTemplate' : 'userMessageTemplate');
+    const node = template.content.firstElementChild.cloneNode(true);
+    const body = node.querySelector('.message-body');
+    body.innerHTML = message.role === 'assistant'
+      ? markdownishToHtml(message.text)
+      : `<p>${escapeHtml(compactText(message.text))}</p>`;
+
+    if (message.role === 'assistant') {
+      const speakButton = node.querySelector('.speak-answer');
+      if ('speechSynthesis' in window) {
+        speakButton.classList.remove('hidden');
+        speakButton.addEventListener('click', () => speakText(stripMarkdown(message.text)));
+      }
+    }
+
+    els.messages.appendChild(node);
+  });
+
+  els.messages.scrollTop = els.messages.scrollHeight;
+}
+
+function renderSources() {
+  const conversation = getActiveConversation();
+  const sources = Array.isArray(conversation.sources) ? conversation.sources : [];
+  const useful = sources.slice(0, 4).map(summarizeSource);
+
+  if (!useful.length) {
+    els.sourcesList.innerHTML = '<div class="empty-state-small">Useful source snippets will appear here after the assistant answers.</div>';
+  } else {
+    els.sourcesList.innerHTML = useful.map(source => `
+      <article class="source-card">
+        <div class="source-title">${escapeHtml(source.title)}</div>
+        <div class="source-text">${escapeHtml(source.snippet)}</div>
+      </article>
+    `).join('');
+  }
+
+  els.sessionId.textContent = conversation.sessionId || '—';
+  els.routeText.textContent = (conversation.route || []).length ? conversation.route.join(', ') : '—';
+  const trace = Array.isArray(conversation.trace) ? conversation.trace : [];
+  els.traceList.innerHTML = trace.length
+    ? trace.map(item => `<div class="trace-chip">${escapeHtml(compactText(String(item)))}</div>`).join('')
+    : '<div class="empty-state-small">No trace available.</div>';
+}
+
+function renderAll() {
+  renderHistory();
+  renderMessages();
+  renderSources();
+  applyPanelState();
+}
+
+function autoResize() {
+  els.input.style.height = 'auto';
+  els.input.style.height = `${Math.min(els.input.scrollHeight, 180)}px`;
+}
+
+async function sendMessage(prefill = null) {
+  const text = compactText(prefill ?? els.input.value);
+  if (!text) return;
+
+  ensureActiveConversation();
+  const conversation = getActiveConversation();
+  conversation.messages.push({ role: 'user', text });
+  conversation.title = conversation.title === 'New chat' ? `${text.slice(0, 44)}${text.length > 44 ? '…' : ''}` : conversation.title;
+  clearLoadedExample();
+  saveConversations();
+  renderAll();
+  els.input.value = '';
+  autoResize();
+
+  setStatus('Thinking…');
+  els.sendBtn.disabled = true;
+
+  try {
+    const response = await fetch(`${API_BASE}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text, session_id: conversation.sessionId }),
+    });
+
+    if (!response.ok) throw new Error(`Request failed with status ${response.status}`);
+    const data = await response.json();
+
+    conversation.sessionId = data.session_id || conversation.sessionId;
+    conversation.route = Array.isArray(data.route) ? data.route : [];
+    conversation.trace = Array.isArray(data.debug_trace) ? data.debug_trace : [];
+    conversation.sources = Array.isArray(data.sources) ? data.sources : [];
+    conversation.messages.push({ role: 'assistant', text: normalizeAnswerText(data.answer || 'No answer returned.') });
+    state.latestAnswer = normalizeAnswerText(data.answer || '');
+
+    saveConversations();
+    renderAll();
+    setStatus('Ready');
+  } catch (error) {
+    conversation.messages.push({ role: 'assistant', text: `I could not complete the request. ${error.message}` });
+    saveConversations();
+    renderAll();
+    setStatus('Error');
+  } finally {
+    els.sendBtn.disabled = false;
+  }
+}
+
+function startNewChat() {
+  state.activeId = null;
+  ensureActiveConversation();
+  clearLoadedExample();
+  state.latestAnswer = '';
+  renderAll();
+  els.input.value = '';
+  autoResize();
+  els.input.focus();
+}
+
+function speakText(text) {
+  if (!('speechSynthesis' in window) || !text) return;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(compactText(text));
+  utterance.rate = 1;
+  utterance.pitch = 1;
+  utterance.lang = 'en-US';
+  window.speechSynthesis.speak(utterance);
+}
+
+function setupSpeechRecognition() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    els.micBtn.classList.add('hidden');
+    return;
+  }
+
+  const recognition = new SpeechRecognition();
+  recognition.lang = 'en-US';
+  recognition.interimResults = true;
+  recognition.continuous = false;
+  state.recognition = recognition;
+
+  let finalText = '';
+  recognition.onstart = () => {
+    finalText = '';
+    els.micBtn.classList.add('active');
+    els.composerHint.textContent = 'Listening… speak clearly and pause when you finish.';
+  };
+
+  recognition.onresult = (event) => {
+    let interim = '';
+    for (let i = event.resultIndex; i < event.results.length; i += 1) {
+      const transcript = event.results[i][0].transcript;
+      if (event.results[i].isFinal) finalText += `${transcript} `;
+      else interim += transcript;
+    }
+    els.input.value = `${finalText}${interim}`.trim();
+    autoResize();
+  };
+
+  recognition.onend = () => {
+    els.micBtn.classList.remove('active');
+    els.composerHint.textContent = 'Review the transcribed text, then press send.';
+  };
+
+  recognition.onerror = () => {
+    els.micBtn.classList.remove('active');
+    els.composerHint.textContent = 'Microphone access failed or was denied.';
+  };
+
+  els.micBtn.addEventListener('click', () => {
+    if (els.micBtn.classList.contains('active')) recognition.stop();
+    else recognition.start();
+  });
+}
+
+function checkHealth() {
+  fetch(`${API_BASE}/health`)
+    .then(response => setStatus(response.ok ? 'Ready' : 'Backend offline'))
+    .catch(() => setStatus('Backend offline'));
+}
+
+function setupEvents() {
+  els.newChatBtn.addEventListener('click', startNewChat);
+  els.historySearch.addEventListener('input', renderHistory);
+  els.sendBtn.addEventListener('click', () => sendMessage());
+  els.input.addEventListener('input', autoResize);
+  els.input.addEventListener('keydown', event => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      sendMessage();
+    }
+  });
+
+  document.querySelectorAll('.example-chip').forEach(button => {
+    button.addEventListener('click', () => {
+      setInputValue(button.dataset.prompt || '', 'Example loaded. You can edit it before sending.');
+    });
+  });
+
+  els.clearPreviewBtn.addEventListener('click', () => {
+    els.input.value = '';
+    clearLoadedExample();
+    autoResize();
+  });
+
+  els.closeLeftBtn.addEventListener('click', () => {
+    state.panels.left = false;
+    savePanels();
+    applyPanelState();
+  });
+  els.openLeftBtn.addEventListener('click', () => {
+    state.panels.left = true;
+    savePanels();
+    applyPanelState();
+  });
+  els.closeRightBtn.addEventListener('click', () => {
+    state.panels.right = false;
+    savePanels();
+    applyPanelState();
+  });
+  els.openRightBtn.addEventListener('click', () => {
+    state.panels.right = true;
+    savePanels();
+    applyPanelState();
+  });
+
+  els.copyTraceBtn.addEventListener('click', async () => {
+    const conversation = getActiveConversation();
+    try {
+      await navigator.clipboard.writeText((conversation.trace || []).join('\n'));
+      els.copyTraceBtn.textContent = 'Copied';
+      setTimeout(() => { els.copyTraceBtn.textContent = 'Copy'; }, 900);
+    } catch {}
+  });
+}
+
+loadState();
+setupEvents();
+setupSpeechRecognition();
+ensureActiveConversation();
+renderAll();
+autoResize();
+checkHealth();

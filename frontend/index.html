@@ -1,124 +1,169 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Smart Agriculture Advisor</title>
+  <title>Smart Agri Copilot</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body>
+<body class="right-open left-open">
+  <div class="page-bg"></div>
+
   <div class="app-shell">
-    <aside class="sidebar">
-      <div class="brand-block">
-        <div class="brand-mark">AI</div>
+    <button id="openLeftBtn" class="panel-toggle panel-toggle-left" aria-label="Open history">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+    </button>
+
+    <aside id="historyPanel" class="side-panel history-panel">
+      <div class="panel-top">
+        <button id="closeLeftBtn" class="icon-btn" aria-label="Close history">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
         <div>
-          <p class="eyebrow">Production demo</p>
-          <h1>Smart Agriculture Advisor</h1>
+          <p class="eyebrow">Workspace</p>
+          <h2>History</h2>
         </div>
       </div>
 
-      <button id="new-chat-btn" class="new-chat-btn" type="button">＋ New advisory chat</button>
+      <button id="newChatBtn" class="primary-btn full">+ New chat</button>
 
-      <section class="sidebar-section">
-        <p class="section-label">Suggested prompts</p>
-        <div class="prompt-list">
-          <button class="prompt-card quick-chip" type="button" data-prompt="I have tomatoes in Bekaa at flowering stage, and the leaves show yellow spots. What might be causing this, how much water do I need this week for 800 square meters, and what fertilizer should I consider?">
-            Tomato disease + irrigation + fertilizer
-          </button>
-          <button class="prompt-card quick-chip" type="button" data-prompt="What can I plant in Bekaa in early spring if water is limited and the soil is medium texture?">
-            Crop planning with limited water
-          </button>
-          <button class="prompt-card quick-chip" type="button" data-prompt="How much water does 1200 square meters of grapes need this week near the coast?">
-            Weekly irrigation estimate for grapes
-          </button>
-        </div>
-      </section>
+      <label class="search-wrap" aria-label="Search history">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16Zm9 2-4.35-4.35" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <input id="historySearch" type="text" placeholder="Search previous chats" />
+      </label>
 
-      <section class="sidebar-section">
-        <p class="section-label">System overview</p>
-        <div class="status-card-group">
-          <article class="mini-card">
-            <span class="mini-title">Route</span>
-            <div id="route-summary" class="pill-row compact-pills">
-              <span class="pill muted-pill">Waiting</span>
-            </div>
-          </article>
-          <article class="mini-card">
-            <span class="mini-title">Session</span>
-            <strong id="session-id">Not started</strong>
-          </article>
-          <article class="mini-card">
-            <span class="mini-title">Status</span>
-            <p id="status">Ready for a new request.</p>
-          </article>
+      <div class="examples-card">
+        <div class="examples-head">
+          <h3>Examples</h3>
+          <span>click to preview</span>
         </div>
-      </section>
+        <div class="example-chip-wrap">
+          <button class="example-chip" data-prompt="I have tomatoes in Bekaa at flowering stage, and the leaves show yellow spots. What might be causing this, how much water do I need this week for 800 square meters, and what fertilizer should I consider?">Tomato yellow leaves</button>
+          <button class="example-chip" data-prompt="What can I plant in Bekaa in early spring with medium soil and limited water?">Crop planning</button>
+          <button class="example-chip" data-prompt="How much water does 1200 square meters of grapes need this week in the coast?">Irrigation need</button>
+        </div>
+      </div>
+
+      <div id="historyList" class="history-list"></div>
     </aside>
 
     <main class="main-area">
-      <header class="topbar">
-        <div>
-          <p class="eyebrow">Chat workspace</p>
-          <h2>Ask grounded farming questions</h2>
+      <section class="hero-panel">
+        <div class="hero-decor hero-decor-top"></div>
+        <div class="hero-decor hero-decor-mid"></div>
+        <div class="hero-meta-row">
+          <span class="app-badge">Smart Agri Copilot</span>
+          <span id="statusPill" class="status-pill">Ready</span>
         </div>
-        <div class="topbar-meta">
-          <span class="meta-chip"><span class="meta-dot"></span><span id="header-status">Ready</span></span>
-          <span class="meta-chip">Accent #8CC7C4</span>
-        </div>
-      </header>
-
-      <section id="messages" class="messages" aria-live="polite">
-        <article class="message assistant intro-message">
-          <div class="message-avatar assistant-avatar">AI</div>
-          <div class="message-body assistant-body">
-            <div class="message-header">
-              <span class="sender-name">Farm Copilot</span>
-              <span class="sender-role">LangGraph supervisor + specialists</span>
-            </div>
-            <div class="rendered-answer">
-              <p>Describe the crop, region, growth stage, area, symptoms, or soil context. The system can route across pest reasoning, irrigation planning, and soil or fertilizer support.</p>
-            </div>
-          </div>
-        </article>
+        <h1>Grounded support for crop, pest, irrigation, and soil decisions.</h1>
+        <p>
+          Ask one question in natural language and the assistant routes it to the right specialists,
+          cites retrieved sources, and keeps the answer practical.
+        </p>
       </section>
 
-      <div id="route-pills" class="route-pills">
-        <span class="pill muted-pill">Multi-agent</span>
-        <span class="pill active-pill">Ready</span>
-      </div>
+      <section class="chat-card">
+        <div id="messages" class="messages"></div>
 
-      <form id="chat-form" class="composer" autocomplete="off">
-        <div class="composer-inner">
-          <textarea id="message" placeholder="Message Smart Agriculture Advisor..." required></textarea>
-          <div class="composer-actions">
-            <button type="button" id="example-btn" class="text-btn">Use example</button>
-            <button type="submit" class="send-btn">Send</button>
+        <div class="composer-shell">
+          <div id="previewBanner" class="preview-banner hidden">
+            <span>Example loaded</span>
+            <button id="clearPreviewBtn" class="ghost-text-btn" aria-label="Clear loaded example">Clear</button>
+          </div>
+
+          <div class="composer-row">
+            <textarea id="messageInput" rows="1" placeholder="Ask Smart Agri Copilot..."></textarea>
+
+            <div class="composer-actions">
+              <button id="micBtn" class="tool-btn" type="button" aria-label="Voice dictation" title="Voice dictation">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 4a3 3 0 0 1 3 3v4a3 3 0 1 1-6 0V7a3 3 0 0 1 3-3Z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+                  <path d="M19 11a7 7 0 0 1-14 0M12 18v3M8.5 21h7" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+                </svg>
+              </button>
+
+              <button id="sendBtn" class="send-btn" type="button" aria-label="Send message" title="Send">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 5v14M5 12l7-7 7 7" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="composer-note-row">
+            <span id="composerHint" class="composer-note">Choose an example to preview it before sending, or type your own question.</span>
           </div>
         </div>
-      </form>
+      </section>
     </main>
 
-    <aside class="details-panel">
-      <section class="details-card">
-        <div class="details-header">
-          <span>Sources</span>
-          <strong id="source-count">0</strong>
+    <aside id="sourcesPanel" class="side-panel sources-panel">
+      <div class="panel-top panel-top-right">
+        <div>
+          <p class="eyebrow">Answer support</p>
+          <h2>Sources</h2>
         </div>
-        <div id="sources" class="source-list empty-state">Retrieved source snippets will appear here.</div>
-      </section>
+        <button id="closeRightBtn" class="icon-btn" aria-label="Close sources">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+      </div>
 
-      <section class="details-card">
-        <div class="details-header">
-          <span>Debug trace</span>
-          <strong>Live</strong>
+      <div class="sources-intro">
+        Only the most useful supporting snippets for the current answer are shown here.
+      </div>
+
+      <div id="sourcesList" class="sources-list empty-state-small">No sources yet.</div>
+
+      <details class="technical-details">
+        <summary>Technical details</summary>
+        <div class="meta-card">
+          <div class="meta-row"><span>Session</span><strong id="sessionId">—</strong></div>
+          <div class="meta-row"><span>Route</span><strong id="routeText">—</strong></div>
         </div>
-        <pre id="debug-trace" class="debug-trace">No trace yet.</pre>
-      </section>
+        <div class="trace-panel">
+          <div class="trace-head">
+            <h3>Trace</h3>
+            <button id="copyTraceBtn" class="ghost-text-btn" type="button">Copy</button>
+          </div>
+          <div id="traceList" class="trace-list empty-state-small">No trace yet.</div>
+        </div>
+      </details>
     </aside>
+
+    <button id="openRightBtn" class="panel-toggle panel-toggle-right" aria-label="Open sources">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H9l-5-5V6a2 2 0 0 1 2-2Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M8 9h8M8 13h8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+    </button>
   </div>
+
+  <template id="assistantMessageTemplate">
+    <article class="message assistant">
+      <div class="avatar assistant-avatar">AI</div>
+      <div class="bubble-card">
+        <div class="message-head">
+          <strong>Assistant</strong>
+          <button class="inline-icon-btn speak-answer hidden" type="button" aria-label="Read answer aloud" title="Read answer aloud">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5 10h3l4-4v12l-4-4H5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+              <path d="M16 9a4.5 4.5 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+        <div class="message-body"></div>
+      </div>
+    </article>
+  </template>
+
+  <template id="userMessageTemplate">
+    <article class="message user">
+      <div class="bubble-card user-bubble">
+        <div class="message-head message-head-user"><strong>You</strong></div>
+        <div class="message-body"></div>
+      </div>
+    </article>
+  </template>
 
   <script src="app.js"></script>
 </body>
