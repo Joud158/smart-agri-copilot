@@ -1,0 +1,144 @@
+{
+  "questions": [
+    {
+      "id": "Q01",
+      "query": "My tomatoes are flowering in Bekaa. Which stages are most sensitive to water deficit?",
+      "route_expected": ["crop", "irrigation"],
+      "ground_truth_answer": "Tomato is especially sensitive to water deficit during and after transplanting, during flowering, and during yield formation. Light, frequent irrigation is generally preferred.",
+      "expected_sources": ["crops/01_fao_tomato_crop_info.md"]
+    },
+    {
+      "id": "Q02",
+      "query": "What soil pH is generally suitable for many crops?",
+      "route_expected": ["soil"],
+      "ground_truth_answer": "Around pH 6.0 to 7.2 is usually a practical working range for many crops.",
+      "expected_sources": ["soil_fertilizer/01_curated_soil_ph_basics.md"]
+    },
+    {
+      "id": "Q03",
+      "query": "What does a soil pH above 7.8 usually imply?",
+      "route_expected": ["soil"],
+      "ground_truth_answer": "Above pH 7.8 there is higher risk of reduced availability of some micronutrients.",
+      "expected_sources": ["soil_fertilizer/01_curated_soil_ph_basics.md"]
+    },
+    {
+      "id": "Q04",
+      "query": "My tomato leaves have white powdery patches. What issue should I suspect first?",
+      "route_expected": ["pest"],
+      "ground_truth_answer": "White powdery patches on tomato leaves and stems are typical clues for powdery mildew, especially when airflow is poor.",
+      "expected_sources": ["pests/03_curated_tomato_pests_and_diseases.md"]
+    },
+    {
+      "id": "Q05",
+      "query": "What are classic signs of whiteflies on tomatoes?",
+      "route_expected": ["pest"],
+      "ground_truth_answer": "Typical clues include small white insects flying when plants are disturbed, sticky honeydew on leaves, and leaf yellowing with weakening.",
+      "expected_sources": ["pests/03_curated_tomato_pests_and_diseases.md"]
+    },
+    {
+      "id": "Q06",
+      "query": "What should I think about if my crop is highly perishable and storage is weak? Harvest now or hold?",
+      "route_expected": ["market"],
+      "ground_truth_answer": "Harvest now is generally more reasonable when the crop is highly perishable and storage conditions are weak.",
+      "expected_sources": ["market/05_curated_harvest_or_hold_rules.md"]
+    },
+    {
+      "id": "Q07",
+      "query": "When is hold more reasonable for harvested produce?",
+      "route_expected": ["market"],
+      "ground_truth_answer": "Hold is more reasonable when the crop stores well, storage conditions are available, quality loss risk is limited, and the market signal is improving gradually.",
+      "expected_sources": ["market/05_curated_harvest_or_hold_rules.md"]
+    },
+    {
+      "id": "Q08",
+      "query": "How much total water does tomato usually need after transplanting?",
+      "route_expected": ["crop", "irrigation"],
+      "ground_truth_answer": "Tomato has an approximate total water requirement after transplanting of about 400 to 600 mm, depending on climate, soil, and growth stage.",
+      "expected_sources": ["crops/01_fao_tomato_crop_info.md"]
+    },
+    {
+      "id": "Q09",
+      "query": "Is olive tolerant of poor soils and what soil condition should still be avoided?",
+      "route_expected": ["crop"],
+      "ground_truth_answer": "Olive can produce acceptable yields even on poor soils if they are deep and well aerated, but waterlogging should be avoided because it increases oxygen stress and disease risk.",
+      "expected_sources": ["crops/02_fao_olive_crop_info.md"]
+    },
+    {
+      "id": "Q10",
+      "query": "For olives, when is irrigation especially important for high yield?",
+      "route_expected": ["crop", "irrigation"],
+      "ground_truth_answer": "Adequate water is especially important from the start of stone hardening through yield formation, and deficits during flowering can also increase flower and fruit drop.",
+      "expected_sources": ["crops/02_fao_olive_crop_info.md"]
+    },
+    {
+      "id": "Q11",
+      "query": "When are green table olives commonly harvested?",
+      "route_expected": ["crop", "market"],
+      "ground_truth_answer": "Green table olives are commonly harvested from mid-September onward.",
+      "expected_sources": ["crops/02_fao_olive_crop_info.md"]
+    },
+    {
+      "id": "Q12",
+      "query": "Why is yellow spotting on tomato leaves not enough for a confident diagnosis?",
+      "route_expected": ["pest"],
+      "ground_truth_answer": "Yellow spotting alone is not enough because possible causes include nutrient imbalance, mite pressure, early disease development, irrigation stress, and water-quality problems.",
+      "expected_sources": ["pests/03_curated_tomato_pests_and_diseases.md"]
+    },
+    {
+      "id": "Q13",
+      "query": "What is a practical pH range for tomato according to the crop guide?",
+      "route_expected": ["crop", "soil"],
+      "ground_truth_answer": "Tomato can grow in many soils, but the preferred soil pH is around 5 to 7 according to the crop guide.",
+      "expected_sources": ["crops/01_fao_tomato_crop_info.md"]
+    },
+    {
+      "id": "Q14",
+      "query": "What irrigation style is usually better for tomato: light frequent or heavy irregular?",
+      "route_expected": ["crop", "irrigation"],
+      "ground_truth_answer": "Light, frequent irrigation is generally preferred for tomato, while heavy irregular irrigation should be avoided.",
+      "expected_sources": ["crops/01_fao_tomato_crop_info.md"]
+    },
+    {
+      "id": "Q15",
+      "query": "What should I do first against aphids on tomato young growth?",
+      "route_expected": ["pest"],
+      "ground_truth_answer": "Start by scouting young growth, reducing weed hosts, and following IPM-first control logic.",
+      "expected_sources": ["pests/03_curated_tomato_pests_and_diseases.md"]
+    },
+    {
+      "id": "Q16",
+      "query": "How can early blight pressure be reduced in tomato?",
+      "route_expected": ["pest"],
+      "ground_truth_answer": "Remove infected leaves where practical, avoid prolonged leaf wetness, and improve airflow and sanitation.",
+      "expected_sources": ["pests/03_curated_tomato_pests_and_diseases.md"]
+    },
+    {
+      "id": "Q17",
+      "query": "What is the crop coefficient range usually mentioned for olive?",
+      "route_expected": ["crop", "irrigation"],
+      "ground_truth_answer": "The olive crop coefficient is generally between 0.4 and 0.6.",
+      "expected_sources": ["crops/02_fao_olive_crop_info.md"]
+    },
+    {
+      "id": "Q18",
+      "query": "Why should the assistant not treat soil pH as a standalone diagnosis?",
+      "route_expected": ["soil"],
+      "ground_truth_answer": "Soil pH should be treated as an interpretation signal, not as a standalone diagnosis.",
+      "expected_sources": ["soil_fertilizer/01_curated_soil_ph_basics.md"]
+    },
+    {
+      "id": "Q19",
+      "query": "What kind of answer should the assistant give for harvest-versus-hold decisions?",
+      "route_expected": ["market"],
+      "ground_truth_answer": "The assistant should explain trade-offs instead of pretending certainty.",
+      "expected_sources": ["market/05_curated_harvest_or_hold_rules.md"]
+    },
+    {
+      "id": "Q20",
+      "query": "Why is drip irrigation suitable for tomato?",
+      "route_expected": ["crop", "irrigation"],
+      "ground_truth_answer": "Drip irrigation is suitable for tomato because it keeps soil moisture more stable and avoids wetting leaves.",
+      "expected_sources": ["crops/01_fao_tomato_crop_info.md"]
+    }
+  ]
+}

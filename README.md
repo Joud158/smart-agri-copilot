@@ -1,215 +1,229 @@
-# Smart Agriculture Advisor — Production AI Agent System
+# Smart Agri Copilot
 
-A production-style multi-agent agriculture decision-support platform for Lebanese and Mediterranean farming contexts.
+Production-style multi-agent agriculture advisor built for the Gen AI Track final project.
 
-It was designed to align directly with the course rubric:
-- **Agent System A** uses **LangGraph** as the primary orchestrator.
-- **Agent System B** is an **independent secondary service** with its own logic and API.
-- A dedicated **MCP server** exposes agriculture tools in its own container.
-- **Qdrant** provides the retrieval layer.
-- The full system runs through **docker-compose** with separated containers and networks.
-- A polished **static frontend** is included for demo quality and presentation value without requiring npm downloads during the build.
+The system focuses on Mediterranean / Lebanon-relevant crop questions such as crop management, irrigation planning, pest reasoning, soil interpretation, fertilizer direction, and harvest-versus-hold market timing.
 
-The uploaded project idea already commits to a Smart Agriculture Advisor with crop guidance, pest support, irrigation planning, fertilizer support, and market timing. This repository implements that direction. fileciteturn2file0
+## Project Goal
 
-The rubric also requires two independent systems on different tech stacks, a RAG pipeline, an MCP server, dockerized microservices, FastAPI APIs, guardrails, session persistence, evaluation, and written technical justifications. That is the structure used here. fileciteturn2file1
+This project demonstrates the full architecture required by the rubric:
 
-## 1) Architecture
+- **Agent System A**: LangGraph-based supervisor with multiple specialists and tools.
+- **Agent System B**: independent FastAPI microservice with Google ADK support plus deterministic fallback.
+- **RAG**: document ingestion, chunking, embeddings, Qdrant, retrieval, reranking, and metadata filtering.
+- **MCP Server**: its own container exposing agriculture tools.
+- **Dockerized microservices**: each service in its own container and orchestrated with `docker-compose`.
+- **API layer**: FastAPI APIs, streaming on Agent A, session persistence, timeouts, and graceful fallback behavior.
+- **Evaluation**: 20-question test set, retrieval metrics, generation evaluation script, and configuration comparison script.
+
+## Users
+
+- farmers
+- agronomy students
+- extension support staff
+- demo evaluators who want to test agent routing and service boundaries
+
+## Architecture Diagram
 
 ```mermaid
 flowchart LR
-    UI[React Frontend] --> A[Agent System A\nLangGraph + FastAPI]
-    A --> Q[Qdrant\nVector DB]
-    A --> B[Agent System B\nGoogle ADK compatible + FastAPI]
-    A --> M[MCP Server\nSoil / Fertilizer / Water tools]
-    A --> S[(SQLite Session Store)]
-    B --> SB[(SQLite Session Store)]
+    UI[Frontend
+Static Web UI] --> A[Agent System A
+LangGraph + FastAPI]
+    A --> Q[Qdrant
+Vector DB]
+    A --> B[Agent System B
+Google ADK / fallback + FastAPI]
+    A --> M[MCP Server
+Soil/Fertilizer/Water tools]
+    B --> S1[(Agent B SQLite sessions)]
+    A --> S2[(Agent A SQLite sessions)]
 ```
 
-## 2) Why this design matches the rubric
+## Agent System A
 
-### Agent System A — LangGraph supervisor
-The primary system uses a **supervisor + specialists** pattern because the rubric explicitly values meaningful decomposition, routing quality, and multi-agent architecture. fileciteturn2file6
+Agent A is the primary business workflow. It contains:
 
-Specialists:
-- **Crop Management Agent**
-- **Pest Diagnosis Agent**
-- **Market Agent**
-- **Irrigation bridge** to Agent System B
-- **Soil / fertilizer bridge** to the MCP server
+- **Supervisor**: routes the question to the right specialists.
+- **Crop specialist**: retrieves crop guidance from the RAG corpus.
+- **Pest specialist**: retrieves symptom and IPM guidance.
+- **Market specialist**: retrieves price-trend and harvest/hold guidance.
+- **Irrigation bridge**: calls Agent System B over HTTP.
+- **Soil bridge**: calls the MCP server through the MCP SDK transport, with REST fallback.
+- **Synthesizer**: builds the final grounded answer and applies output guardrails.
 
-### Agent System B — Independent secondary service
-The requirements state that Agent System B must be separate, independently deployed, and called over the network instead of imported into Agent System A. fileciteturn2file11
+## Agent System B
 
-This project keeps Agent B in:
-- its **own folder**
-- its **own Dockerfile**
-- its **own requirements**
-- its **own FastAPI app**
-- its **own session persistence**
-- its **own HTTP API**
+Agent B is intentionally separate from Agent A and runs in a different container. It is responsible for irrigation and weather-style planning.
 
-The service is **Google ADK compatible**. The official ADK docs show Python support, installation with `pip install google-adk`, and agent definitions centered around a `root_agent`. citeturn273600search0turn583850view0  
-To keep demos robust, a deterministic fallback is also included so the architecture still works even when a Gemini key is not available.
+Primary mode:
+- **Google ADK runner** when `google-adk` and a working model/API key are available.
 
-### MCP server
-The rubric requires a dedicated MCP server container exposing domain tools. fileciteturn2file11
+Fallback mode:
+- deterministic irrigation/frost/spray planning so the project still runs reliably in low-resource grading environments.
 
-This project uses the official MCP Python SDK / FastMCP pattern, where tools are defined with `FastMCP(...)` and mounted via Streamable HTTP, which the official SDK documents as the recommended production transport. citeturn608308search0turn561618view0
+This means the service stays online even if the LLM path is unavailable, while still showing a real second framework path in code.
 
-Tools:
-- `analyze_soil`
-- `calculate_fertilizer`
-- `estimate_water_usage`
-
-## 3) RAG choices and justification
+## RAG Design Choices
 
 ### Corpus
-The uploaded topic and architecture note already propose four collections:
-1. crop guides
-2. pest and disease entries
-3. soil / fertilizer knowledge
-4. market and post-harvest guidance. fileciteturn2file8
+The `data/` folder contains agriculture documents across crops, pests, market timing, and soil/fertilizer topics. The corpus comfortably exceeds the 15-page requirement once indexed text is considered across all files.
 
-That structure is preserved here.
+### Chunking
+Default chunking is:
+- `chunk_size = 900`
+- `chunk_overlap = 180`
+- separators: heading-aware recursive split (`##`, `#`, paragraph, line, sentence, token fallback)
 
-### Chunking strategy
-**Chosen default:** `chunk_size=650` characters, `overlap=120`.
-
-Why:
-- agriculture documents often contain compact, high-value sections like **symptoms**, **water needs**, **pH interpretation**, and **harvest notes**
-- too-large chunks blur signals across unrelated subsections
-- too-small chunks lose the agronomic context around a symptom or recommendation
-
-This size is a practical middle ground for:
-- keeping a single agronomic subsection together
-- preserving nearby caution notes
-- limiting noisy retrieval
+Why this choice:
+- the documents are short structured guides rather than long narrative PDFs
+- preserving heading blocks improves retrieval precision for “critical stage”, “soil requirements”, and “management direction” style questions
+- moderate overlap protects boundary facts like pH ranges and irrigation-sensitive stages
 
 ### Embeddings
-**Chosen default:** `text-embedding-3-small` via an OpenAI-compatible endpoint
+Default embedding provider is `local_deterministic`.
 
 Why:
-- dramatically lighter Docker build on unstable networks
-- keeps retrieval quality strong without downloading local transformer weights
-- still gives a clear, defensible embedding choice for the presentation
+- reproducible in offline grading environments
+- avoids external dependencies during demo
+- still supports evaluation and config comparison
 
-### Vector database
-**Chosen default:** Qdrant.
+The design remains extensible to stronger embedding backends later by switching env vars.
 
-Why:
-- the rubric explicitly allows Qdrant
-- it runs cleanly in Docker
-- metadata filters are straightforward
-- easy to inspect during demos. fileciteturn2file11
+### Retrieval and reranking
+- Qdrant stores the vectors.
+- metadata filtering is used for crop/topic-aware retrieval.
+- a lightweight hybrid rerank combines semantic score with lexical coverage.
 
-### Metadata filtering
-Payload metadata includes:
-- `topic`
-- `crop_name`
-- `region`
-- `source_type`
-- `soil_type`
-- `growth_stage`
-- `season`
-- `source_path`
+## MCP Design
 
-That supports targeted retrieval such as:
-- tomato + flowering
-- pest documents only
-- market guidance only
+The MCP server runs in its own container and exposes these domain tools:
 
-## 4) Guardrails and production thinking
+- `mcp_analyze_soil`
+- `mcp_calculate_fertilizer`
+- `mcp_estimate_water_usage`
+- `mcp_analyze_bundle`
 
-The rubric emphasizes guardrails, timeouts, graceful failure, and session persistence. fileciteturn2file7
+Agent A now connects to it through the **MCP Streamable HTTP** transport first, then falls back to the REST bridge if the MCP SDK bootstrap fails.
 
-Implemented guardrails:
-- input scope check
-- unsafe-input keyword block for clearly dangerous misuse
-- clarification request when essential agronomic fields are missing
-- output disclaimer so the system stays decision-support oriented
-- HTTP timeouts for service-to-service calls
-- bounded routing without infinite loops
-- defensive fallbacks when Agent B or the MCP server is unavailable
+## Guardrails and Production Behaviors
 
-## 5) Frontend design
+Implemented guardrails and robustness features:
 
-A mobile-inspired static frontend is included because you shared a rounded, soft, card-based interface as the visual goal.
+- input scope filtering on Agent A
+- output disclaimer enforcement
+- max specialist step limits
+- service timeouts and retry logic
+- graceful degradation if Agent B or MCP path is unavailable
+- persistent chat history in SQLite for Agent A and Agent B
 
-How it was adapted:
-- the original warm orange accent is replaced with **pastel green `#C7EABB`**
-- rounded cards and soft shadows are preserved
-- the dashboard is reframed around farm operations:
-  - today's field focus
-  - irrigation reminder
-  - crop health cards
-  - market signals
-  - chat assistant
+## Docker and Network Layout
 
-## 6) CI/CD pipeline
+Two Docker networks are used:
 
-A GitHub Actions pipeline is included under `.github/workflows/`:
-- **CI** on push / pull request
-- Python linting
-- frontend build
-- Docker image build validation
-- optional **CD** flow to push images to GHCR when repository secrets are configured
+- `public-net`: frontend and Agent A only
+- `internal-net`: Agent A, Agent B, MCP, and Qdrant
 
-This helps you present the project as something closer to a production engineering workflow instead of a notebook-only demo.
+Only the frontend and Agent A are exposed to the host. This better matches a production microservice layout where internal services are private.
 
-## 7) Run locally
+## Files You Should Present
 
-### Step 1
-Create a real `.env` file from the example:
+- `README.md`
+- `ARCHITECTURE.md`
+- `EVALUATION.md`
+- `docker-compose.yml`
+- each service `Dockerfile`
+- `scripts/ingest_to_qdrant.py`
+- `scripts/evaluate_retrieval.py`
+- `scripts/evaluate_generation.py`
+- `scripts/compare_configs.py`
+
+## Setup
+
+### 1. Prepare environment
+Copy the example file:
 
 ```bash
 cp .env.example .env
 ```
 
-### Step 2
-Build and run:
+On Windows PowerShell:
 
-```bash
-docker compose up --build
+```powershell
+Copy-Item .env.example .env
 ```
 
-### Step 3
-Ingest the corpus into Qdrant:
+### 2. Start the stack
+
+```bash
+docker compose up --build -d
+```
+
+### 3. Ingest the corpus
 
 ```bash
 docker compose exec agent-system-a python /app/scripts/ingest_to_qdrant.py
 ```
 
-### Step 4
+### 4. Open the UI
+
 Open:
+
+```text
+http://localhost:3000
+```
+
+## Health Checks
+
+Public checks:
+
+- Agent A: `http://localhost:8101/health`
 - Frontend: `http://localhost:3000`
-- Agent A docs: `http://localhost:8101/docs`
-- Agent B docs: `http://localhost:8102/docs`
-- MCP bridge docs: `http://localhost:8103/docs`
-- Qdrant dashboard: `http://localhost:6333/dashboard`
 
-## 8) Key demo routes
+Internal checks from Docker:
 
-Suggested demo queries:
-1. “I have tomatoes in Bekaa at flowering stage and the leaves show yellow spots.”
-2. “How much water do 800 square meters of tomatoes need this week?”
-3. “My soil pH is 8.1 for cucumber. Is that a problem?”
-4. “Should I harvest tomatoes now or hold for a better market window?”
-5. “Compare irrigation and fertilizer priorities for tomato vs grape.”
+```bash
+docker compose exec agent-system-b python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8102/health').read().decode())"
+docker compose exec mcp-server python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8103/health').read().decode())"
+docker compose exec vector-db python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:6333/collections').read().decode())"
+```
 
-## 9) Known limitations
+## Evaluation Commands
 
-- Agent B’s ADK path requires a valid Gemini-compatible setup if you want the LLM-driven ADK mode instead of deterministic fallback.
-- Some domain files are curated summaries for demo completeness and are labeled as such.
-- Market guidance is seasonal and explanatory, not live price forecasting.
-- The evaluation file includes a full test set template and example comparisons, but you should run it once with your final API key and corpus state before submitting.
+### Retrieval metrics
 
-## 10) Suggested presentation talking points
+```bash
+docker compose exec agent-system-a python /app/scripts/evaluate_retrieval.py
+```
 
-1. Why a **supervisor + specialists** architecture is better than one giant chatbot.
-2. Why **Agent B must stay independent** and be called by HTTP.
-3. Why **MCP** is separate from business logic.
-4. Why **metadata filtering** improves agronomic precision.
-5. Why **two networks** show production thinking.
-6. Why **CI/CD** matters for a serious engineering demo.
+### Generation evaluation
 
+```bash
+docker compose exec agent-system-a python /app/scripts/evaluate_generation.py
+```
+
+### Compare 2 configurations
+
+```bash
+docker compose exec agent-system-a python /app/scripts/compare_configs.py
+```
+
+## Demo Query Ideas
+
+- “My tomatoes in Bekaa are flowering. How sensitive are they to water stress?”
+- “Tomato leaves have white powdery patches. What should I check first?”
+- “My soil pH is 8.1. What does that imply?”
+- “Should I harvest now or hold if the crop is highly perishable and storage is weak?”
+- “For olives, when is irrigation especially important for yield?”
+
+## Known Limitations
+
+- ADK execution depends on a working model/API key if you want the full Agent B LLM path.
+- The packaged generation evaluation uses a heuristic fallback by default; you can wire in a judge model later.
+- Voice bonus is not included in this build.
+
+## Security / Submission Hygiene
+
+- real `.env` is intentionally excluded from the corrected package
+- use only `.env.example` with placeholders
+- session databases and runtime artifacts are gitignored

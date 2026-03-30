@@ -1,6 +1,20 @@
-const API_BASE = 'http://localhost:8101';
-const STORAGE_KEY = 'smart_agri_frontend_v5';
-const PANEL_KEY = 'smart_agri_panel_state_v5';
+const STORAGE_KEY = 'smart_agri_frontend_v6';
+const PANEL_KEY = 'smart_agri_panel_state_v6';
+
+function resolveApiBase() {
+  const queryParam = new URLSearchParams(window.location.search).get('api');
+  if (queryParam) return queryParam.replace(/\/$/, '');
+
+  const configured = window.__SMART_AGRI_CONFIG__?.apiBase;
+  if (configured) return configured.replace(/\/$/, '');
+
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return 'http://localhost:8101';
+  }
+  return `${window.location.protocol}//${window.location.hostname}:8101`;
+}
+
+const API_BASE = resolveApiBase();
 
 const els = {
   historyPanel: document.getElementById('historyPanel'),
@@ -31,8 +45,7 @@ const state = {
   activeId: null,
   conversations: [],
   recognition: null,
-  latestAnswer: '',
-  loadedExample: '',
+  isStreaming: false,
   panels: { left: true, right: true },
 };
 
@@ -54,6 +67,15 @@ function normalizeAnswerText(text = '') {
     .replace(/\s+##\s+/g, '\n\n## ')
     .replace(/\s+-\s+/g, '\n- ')
     .trim();
+}
+
+function escapeHtml(text = '') {
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function setStatus(text) {
@@ -93,7 +115,7 @@ function applyPanelState() {
 }
 
 function ensureActiveConversation() {
-  if (state.activeId && state.conversations.some(c => c.id === state.activeId)) return;
+  if (state.activeId && state.conversations.some(item => item.id === state.activeId)) return;
   const conversation = {
     id: uid(),
     title: 'New chat',
@@ -111,12 +133,15 @@ function ensureActiveConversation() {
 
 function getActiveConversation() {
   ensureActiveConversation();
-  return state.conversations.find(c => c.id === state.activeId);
+  return state.conversations.find(item => item.id === state.activeId);
+}
+
+function getHistoryFilter() {
+  return (els.historySearch.value || '').trim().toLowerCase();
 }
 
 function setInputValue(value, hint = '') {
   els.input.value = value;
-  state.loadedExample = value;
   els.previewBanner.classList.toggle('hidden', !value);
   els.composerHint.textContent = hint || 'Edit the loaded example if needed, then press send.';
   autoResize();
@@ -124,55 +149,13 @@ function setInputValue(value, hint = '') {
 }
 
 function clearLoadedExample() {
-  state.loadedExample = '';
   els.previewBanner.classList.add('hidden');
   els.composerHint.textContent = 'Choose an example to preview it before sending, or type your own question.';
 }
 
-function getHistoryFilter() {
-  return (els.historySearch.value || '').trim().toLowerCase();
-}
-
-function escapeHtml(text = '') {
-  return String(text)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function renderHistory() {
-  const filter = getHistoryFilter();
-  const items = state.conversations.filter(c => {
-    if (!filter) return true;
-    const messagesText = (c.messages || []).map(m => m.text || '').join(' ').toLowerCase();
-    return (c.title || '').toLowerCase().includes(filter) || messagesText.includes(filter);
-  });
-
-  if (!items.length) {
-    els.historyList.innerHTML = '<div class="empty-state-small">No conversations match that search.</div>';
-    return;
-  }
-
-  els.historyList.innerHTML = items.map(item => {
-    const last = item.messages?.[item.messages.length - 1]?.text || '';
-    const preview = compactText(last).slice(0, 64);
-    return `
-      <button class="history-item ${item.id === state.activeId ? 'active' : ''}" data-id="${item.id}">
-        <div class="history-item-title">${escapeHtml(item.title || 'New chat')}</div>
-        <div class="history-item-sub">${escapeHtml(preview || item.createdAt || '')}</div>
-      </button>
-    `;
-  }).join('');
-
-  els.historyList.querySelectorAll('.history-item').forEach(btn => {
-    btn.addEventListener('click', () => {
-      state.activeId = btn.dataset.id;
-      saveConversations();
-      renderAll();
-    });
-  });
+function autoResize() {
+  els.input.style.height = 'auto';
+  els.input.style.height = `${Math.min(els.input.scrollHeight, 180)}px`;
 }
 
 function stripMarkdown(text = '') {
@@ -182,28 +165,6 @@ function stripMarkdown(text = '') {
     .replace(/`([^`]+)`/g, '$1')
     .replace(/^[-•]\s*/gm, '')
     .trim();
-}
-
-function deriveSourceTitle(source) {
-  const explicit = compactText(source?.title || '');
-  if (explicit && !/^untitled$/i.test(explicit) && !/^source$/i.test(explicit)) return explicit;
-
-  const text = String(source?.text || '');
-  const headingMatch = text.match(/^#{1,6}\s*(.+)$/m);
-  if (headingMatch) return compactText(headingMatch[1]);
-
-  const firstSentence = compactText(stripMarkdown(text).split(/[.!?]/)[0] || 'Supporting source');
-  return firstSentence.slice(0, 80) || 'Supporting source';
-}
-
-function summarizeSource(source) {
-  const title = deriveSourceTitle(source);
-  const cleaned = compactText(stripMarkdown(source?.text || ''));
-  const snippet = cleaned.startsWith(title) ? cleaned.slice(title.length).trim() : cleaned;
-  return {
-    title,
-    snippet: (snippet || cleaned || 'Relevant supporting information used for this answer.').slice(0, 220),
-  };
 }
 
 function inlineFormat(text = '') {
@@ -267,9 +228,43 @@ function markdownishToHtml(text = '') {
   return chunks.join('');
 }
 
+function renderHistory() {
+  const filter = getHistoryFilter();
+  const items = state.conversations.filter(item => {
+    if (!filter) return true;
+    const messagesText = (item.messages || []).map(msg => msg.text || '').join(' ').toLowerCase();
+    return (item.title || '').toLowerCase().includes(filter) || messagesText.includes(filter);
+  });
+
+  if (!items.length) {
+    els.historyList.innerHTML = '<div class="empty-state-small">No conversations match that search.</div>';
+    return;
+  }
+
+  els.historyList.innerHTML = items.map(item => {
+    const last = item.messages?.[item.messages.length - 1]?.text || '';
+    const preview = compactText(last).slice(0, 64);
+    return `
+      <button class="history-item ${item.id === state.activeId ? 'active' : ''}" data-id="${item.id}">
+        <div class="history-item-title">${escapeHtml(item.title || 'New chat')}</div>
+        <div class="history-item-sub">${escapeHtml(preview || item.createdAt || '')}</div>
+      </button>
+    `;
+  }).join('');
+
+  els.historyList.querySelectorAll('.history-item').forEach(button => {
+    button.addEventListener('click', () => {
+      state.activeId = button.dataset.id;
+      saveConversations();
+      renderAll();
+    });
+  });
+}
+
 function renderMessages() {
   const conversation = getActiveConversation();
   const messages = conversation.messages || [];
+
   if (!messages.length) {
     els.messages.innerHTML = `
       <article class="message assistant">
@@ -277,7 +272,7 @@ function renderMessages() {
         <div class="bubble-card">
           <div class="message-head"><strong>Assistant</strong></div>
           <div class="message-body">
-            <p>Ask about crops, symptoms, irrigation, soil interpretation, or fertilizer guidance. Choose an example to preview it before sending, or type your own question below.</p>
+            <p>Ask about crops, symptoms, irrigation, soil interpretation, or fertilizer guidance. The interface now streams responses as they are generated.</p>
           </div>
         </div>
       </article>
@@ -290,38 +285,67 @@ function renderMessages() {
     const template = document.getElementById(message.role === 'assistant' ? 'assistantMessageTemplate' : 'userMessageTemplate');
     const node = template.content.firstElementChild.cloneNode(true);
     const body = node.querySelector('.message-body');
+
     body.innerHTML = message.role === 'assistant'
-      ? markdownishToHtml(message.text)
+      ? markdownishToHtml(message.text || (message.pending ? 'Thinking…' : 'No answer returned.'))
       : `<p>${escapeHtml(compactText(message.text))}</p>`;
 
     if (message.role === 'assistant') {
       const speakButton = node.querySelector('.speak-answer');
       if ('speechSynthesis' in window) {
         speakButton.classList.remove('hidden');
-        speakButton.addEventListener('click', () => speakText(stripMarkdown(message.text)));
+        speakButton.addEventListener('click', () => speakText(stripMarkdown(message.text || '')));
       }
     }
 
     els.messages.appendChild(node);
   });
-
   els.messages.scrollTop = els.messages.scrollHeight;
+}
+
+function deriveSourceTitle(source) {
+  const explicit = compactText(source?.title || '');
+  if (explicit && !/^untitled$/i.test(explicit) && !/^source$/i.test(explicit)) return explicit;
+  const text = String(source?.text || '');
+  const headingMatch = text.match(/^#{1,6}\s*(.+)$/m);
+  if (headingMatch) return compactText(headingMatch[1]);
+  const firstSentence = compactText(stripMarkdown(text).split(/[.!?]/)[0] || 'Supporting source');
+  return firstSentence.slice(0, 80) || 'Supporting source';
+}
+
+function summarizeSource(source) {
+  const title = deriveSourceTitle(source);
+  const cleaned = compactText(stripMarkdown(source?.text || ''));
+  const snippet = cleaned.startsWith(title) ? cleaned.slice(title.length).trim() : cleaned;
+  return {
+    title,
+    snippet: (snippet || cleaned || 'Relevant supporting information used for this answer.').slice(0, 220),
+  };
 }
 
 function renderSources() {
   const conversation = getActiveConversation();
   const sources = Array.isArray(conversation.sources) ? conversation.sources : [];
-  const useful = sources.slice(0, 4).map(summarizeSource);
 
-  if (!useful.length) {
-    els.sourcesList.innerHTML = '<div class="empty-state-small">Useful source snippets will appear here after the assistant answers.</div>';
+  if (!sources.length) {
+    els.sourcesList.innerHTML = '<div class="empty-state-small">No sources yet.</div>';
   } else {
-    els.sourcesList.innerHTML = useful.map(source => `
-      <article class="source-card">
-        <div class="source-title">${escapeHtml(source.title)}</div>
-        <div class="source-text">${escapeHtml(source.snippet)}</div>
-      </article>
-    `).join('');
+    els.sourcesList.innerHTML = sources.map(source => {
+      const summary = summarizeSource(source);
+      const metadata = source.metadata || {};
+      const badges = [metadata.topic, metadata.crop_name, metadata.growth_stage].filter(Boolean);
+      const score = typeof source.score === 'number' ? source.score.toFixed(3) : '—';
+      return `
+        <article class="source-card">
+          <div class="source-title">${escapeHtml(summary.title)}</div>
+          <div class="source-text">${escapeHtml(summary.snippet)}</div>
+          <div class="source-text" style="margin-top:10px;font-size:0.78rem;color:#6b7d7c;">
+            <strong>File:</strong> ${escapeHtml(source.source_path || 'unknown')} &nbsp;•&nbsp; <strong>Score:</strong> ${escapeHtml(score)}
+          </div>
+          ${badges.length ? `<div class="source-text" style="margin-top:8px;font-size:0.78rem;color:#587271;">${badges.map(badge => `<span style="display:inline-block;margin-right:6px;padding:3px 8px;border-radius:999px;background:#eef6f5;">${escapeHtml(String(badge))}</span>`).join('')}</div>` : ''}
+        </article>
+      `;
+    }).join('');
   }
 
   els.sessionId.textContent = conversation.sessionId || '—';
@@ -339,67 +363,10 @@ function renderAll() {
   applyPanelState();
 }
 
-function autoResize() {
-  els.input.style.height = 'auto';
-  els.input.style.height = `${Math.min(els.input.scrollHeight, 180)}px`;
-}
-
-async function sendMessage(prefill = null) {
-  const text = compactText(prefill ?? els.input.value);
-  if (!text) return;
-
-  ensureActiveConversation();
-  const conversation = getActiveConversation();
-  conversation.messages.push({ role: 'user', text });
-  conversation.title = conversation.title === 'New chat' ? `${text.slice(0, 44)}${text.length > 44 ? '…' : ''}` : conversation.title;
-  clearLoadedExample();
-  saveConversations();
-  renderAll();
-  els.input.value = '';
-  autoResize();
-
-  setStatus('Thinking…');
-  els.sendBtn.disabled = true;
-
-  try {
-    const response = await fetch(`${API_BASE}/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text, session_id: conversation.sessionId }),
-    });
-
-    if (!response.ok) throw new Error(`Request failed with status ${response.status}`);
-    const data = await response.json();
-
-    conversation.sessionId = data.session_id || conversation.sessionId;
-    conversation.route = Array.isArray(data.route) ? data.route : [];
-    conversation.trace = Array.isArray(data.debug_trace) ? data.debug_trace : [];
-    conversation.sources = Array.isArray(data.sources) ? data.sources : [];
-    conversation.messages.push({ role: 'assistant', text: normalizeAnswerText(data.answer || 'No answer returned.') });
-    state.latestAnswer = normalizeAnswerText(data.answer || '');
-
-    saveConversations();
-    renderAll();
-    setStatus('Ready');
-  } catch (error) {
-    conversation.messages.push({ role: 'assistant', text: `I could not complete the request. ${error.message}` });
-    saveConversations();
-    renderAll();
-    setStatus('Error');
-  } finally {
-    els.sendBtn.disabled = false;
-  }
-}
-
-function startNewChat() {
-  state.activeId = null;
-  ensureActiveConversation();
-  clearLoadedExample();
-  state.latestAnswer = '';
-  renderAll();
-  els.input.value = '';
-  autoResize();
-  els.input.focus();
+function detectSpeechLanguage(text = '') {
+  if (/[\u0600-\u06FF]/.test(text)) return 'ar-LB';
+  if (/[éèêëàâîïôöùûüç]/i.test(text)) return 'fr-FR';
+  return navigator.language || 'en-US';
 }
 
 function speakText(text) {
@@ -408,7 +375,7 @@ function speakText(text) {
   const utterance = new SpeechSynthesisUtterance(compactText(text));
   utterance.rate = 1;
   utterance.pitch = 1;
-  utterance.lang = 'en-US';
+  utterance.lang = detectSpeechLanguage(text);
   window.speechSynthesis.speak(utterance);
 }
 
@@ -420,7 +387,7 @@ function setupSpeechRecognition() {
   }
 
   const recognition = new SpeechRecognition();
-  recognition.lang = 'en-US';
+  recognition.lang = (navigator.languages && navigator.languages[0]) || navigator.language || 'en-US';
   recognition.interimResults = true;
   recognition.continuous = false;
   state.recognition = recognition;
@@ -429,14 +396,14 @@ function setupSpeechRecognition() {
   recognition.onstart = () => {
     finalText = '';
     els.micBtn.classList.add('active');
-    els.composerHint.textContent = 'Listening… speak clearly and pause when you finish.';
+    els.composerHint.textContent = `Listening in ${recognition.lang}… speak clearly and pause when you finish.`;
   };
 
   recognition.onresult = (event) => {
     let interim = '';
-    for (let i = event.resultIndex; i < event.results.length; i += 1) {
-      const transcript = event.results[i][0].transcript;
-      if (event.results[i].isFinal) finalText += `${transcript} `;
+    for (let index = event.resultIndex; index < event.results.length; index += 1) {
+      const transcript = event.results[index][0].transcript;
+      if (event.results[index].isFinal) finalText += `${transcript} `;
       else interim += transcript;
     }
     els.input.value = `${finalText}${interim}`.trim();
@@ -454,9 +421,124 @@ function setupSpeechRecognition() {
   };
 
   els.micBtn.addEventListener('click', () => {
+    recognition.lang = detectSpeechLanguage(els.input.value || navigator.language || 'en-US');
     if (els.micBtn.classList.contains('active')) recognition.stop();
     else recognition.start();
   });
+}
+
+async function consumeSSE(response, handlers) {
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    let boundary = buffer.indexOf('\n\n');
+    while (boundary !== -1) {
+      const rawEvent = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+      boundary = buffer.indexOf('\n\n');
+
+      const lines = rawEvent.split('\n');
+      let eventName = 'message';
+      const dataLines = [];
+      for (const line of lines) {
+        if (line.startsWith('event:')) eventName = line.slice(6).trim();
+        if (line.startsWith('data:')) dataLines.push(line.slice(5).trim());
+      }
+      if (!dataLines.length) continue;
+
+      let payload = dataLines.join('\n');
+      try {
+        payload = JSON.parse(payload);
+      } catch {}
+
+      if (handlers[eventName]) handlers[eventName](payload);
+    }
+  }
+}
+
+async function sendMessage(prefill = null) {
+  const text = compactText(prefill ?? els.input.value);
+  if (!text || state.isStreaming) return;
+
+  ensureActiveConversation();
+  const conversation = getActiveConversation();
+  conversation.messages.push({ role: 'user', text });
+  conversation.title = conversation.title === 'New chat' ? `${text.slice(0, 44)}${text.length > 44 ? '…' : ''}` : conversation.title;
+  const assistantMessage = { role: 'assistant', text: 'Thinking…', pending: true };
+  conversation.messages.push(assistantMessage);
+  conversation.sources = [];
+  conversation.trace = [];
+  clearLoadedExample();
+  saveConversations();
+  renderAll();
+
+  els.input.value = '';
+  autoResize();
+  setStatus('Streaming…');
+  els.sendBtn.disabled = true;
+  state.isStreaming = true;
+
+  try {
+    const response = await fetch(`${API_BASE}/chat/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text, session_id: conversation.sessionId, stream: true }),
+    });
+    if (!response.ok || !response.body) throw new Error(`Request failed with status ${response.status}`);
+
+    let accumulated = '';
+    await consumeSSE(response, {
+      meta(payload) {
+        conversation.sessionId = payload.session_id || conversation.sessionId;
+        conversation.route = Array.isArray(payload.route) ? payload.route : conversation.route;
+        saveConversations();
+        renderSources();
+      },
+      token(payload) {
+        accumulated += payload.text || '';
+        assistantMessage.text = normalizeAnswerText(accumulated || 'Thinking…');
+        assistantMessage.pending = true;
+        renderMessages();
+      },
+      done(payload) {
+        assistantMessage.text = normalizeAnswerText(payload.answer || accumulated || 'No answer returned.');
+        assistantMessage.pending = false;
+        conversation.sessionId = payload.session_id || conversation.sessionId;
+        conversation.route = Array.isArray(payload.route) ? payload.route : [];
+        conversation.trace = Array.isArray(payload.debug_trace) ? payload.debug_trace : [];
+        conversation.sources = Array.isArray(payload.sources) ? payload.sources : [];
+        saveConversations();
+        renderAll();
+      },
+    });
+
+    setStatus('Ready');
+  } catch (error) {
+    assistantMessage.text = `I could not complete the request. ${error.message}`;
+    assistantMessage.pending = false;
+    saveConversations();
+    renderAll();
+    setStatus('Error');
+  } finally {
+    els.sendBtn.disabled = false;
+    state.isStreaming = false;
+  }
+}
+
+function startNewChat() {
+  state.activeId = null;
+  ensureActiveConversation();
+  clearLoadedExample();
+  renderAll();
+  els.input.value = '';
+  autoResize();
+  els.input.focus();
 }
 
 function checkHealth() {

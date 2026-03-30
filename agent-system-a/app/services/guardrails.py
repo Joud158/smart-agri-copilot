@@ -19,8 +19,12 @@ AGRI_HINTS = [
     "crop",
     "soil",
     "irrigation",
+    "water",
+    "watering",
     "fertilizer",
     "market",
+    "price",
+    "sell",
     "pest",
     "disease",
     "greenhouse",
@@ -32,6 +36,8 @@ AGRI_HINTS = [
     "wheat",
     "grape",
     "cucumber",
+    "طماطم", "زيتون", "قمح", "ري", "تربة", "سماد", "آفات",
+    "tomate", "olivier", "blé", "irrigation", "sol", "engrais", "maladie",
 ]
 
 

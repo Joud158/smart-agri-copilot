@@ -53,6 +53,34 @@ async def health() -> dict[str, str]:
     return {"status": "ok", "service": "mcp-server"}
 
 
+
+
+@mcp.tool()
+def mcp_analyze_bundle(
+    message: str,
+    crop: str | None = None,
+    region: str | None = None,
+    growth_stage: str | None = None,
+    area_m2: float | None = None,
+    soil_ph: float | None = None,
+    organic_matter_pct: float | None = None,
+    soil_texture: str | None = None,
+    month: str | None = None,
+) -> dict:
+    """Analyze a combined soil / fertilizer / water-planning request."""
+    return analyze_bundle(
+        message=message,
+        crop=crop,
+        region=region,
+        growth_stage=growth_stage,
+        area_m2=area_m2,
+        soil_ph=soil_ph,
+        organic_matter_pct=organic_matter_pct,
+        soil_texture=soil_texture,
+        month=month,
+    )
+
+
 @bridge_api.post("/bridge/analyze_soil")
 async def bridge_analyze_soil(payload: dict) -> dict:
     return analyze_soil(
@@ -87,6 +115,11 @@ async def bridge_analyze_bundle(payload: dict) -> dict:
         crop=payload.get("crop"),
         region=payload.get("region"),
         growth_stage=payload.get("growth_stage"),
+        area_m2=payload.get("area_m2"),
+        soil_ph=payload.get("soil_ph"),
+        organic_matter_pct=payload.get("organic_matter_pct"),
+        soil_texture=payload.get("soil_texture"),
+        month=payload.get("month"),
     )
 
 
