@@ -43,6 +43,24 @@ def load_testset() -> list[dict]:
     return payload["questions"]
 
 
+def run_vector_search(client: QdrantClient, vector: list[float], limit: int):
+    if hasattr(client, "query_points"):
+        response = client.query_points(
+            collection_name=COLLECTION,
+            query=vector,
+            limit=limit,
+            with_payload=True,
+        )
+        return response.points
+
+    return client.search(
+        collection_name=COLLECTION,
+        query_vector=vector,
+        limit=limit,
+        with_payload=True,
+    )
+
+
 def main() -> None:
     client = QdrantClient(url=QDRANT_URL)
     embedder = build_embedding_provider(settings)
@@ -51,8 +69,9 @@ def main() -> None:
 
     for test in tests:
         vector = embedder.embed_query(test["query"])
-        hits = client.search(collection_name=COLLECTION, query_vector=vector, limit=max(K, 8))
-        retrieved = [hit.payload.get("source_path", "") for hit in hits]
+        hits = run_vector_search(client, vector, max(K, 8))
+        retrieved = [(hit.payload or {}).get("source_path", "") for hit in hits]
+
         details.append(
             {
                 "id": test["id"],
@@ -76,8 +95,10 @@ def main() -> None:
         "chunk_overlap": settings.rag_chunk_overlap,
         "top_k": K,
     }
+
     print(json.dumps({"macro": macro, "details": details}, indent=2, ensure_ascii=False))
 
 
 if __name__ == "__main__":
     main()
+    
