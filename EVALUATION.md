@@ -241,36 +241,3 @@ The evaluation supports five important conclusions:
 3. End-to-end answer quality depends heavily on routing quality and whether the right corpus document is retrieved early.
 4. A smaller chunk size with lower top-k performed better than the larger baseline configuration.
 5. The project demonstrates real engineering iteration because the configuration comparison led to a measurable improvement rather than a purely subjective preference.
-
-## 9. What to Show in the Demo
-
-For the presentation, the best sequence is:
-
-1. Run retrieval evaluation
-2. Run generation evaluation
-3. Run configuration comparison
-4. Show one strong example
-5. Show one failure case honestly and explain the root cause
-
-A good demo should emphasize not only what worked, but also what failed, why it failed, and how the evaluation results guided improvements.
-
-## 10. Recommended Next Improvements
-
-The most useful next improvements would be:
-
-- strengthen routing for disease and irrigation questions
-- reduce retrieval noise with better filtering or reranking
-- expand crop-specific irrigation coverage beyond tomato
-- replace the heuristic generation scorer with a true LLM-as-judge evaluator
-- improve follow-up query handling for short contextual questions
-
-## 11. Summary
-
-This project satisfies the evaluation requirement by including:
-- a 20-question grounded test set
-- retrieval metrics
-- generation evaluation
-- a two-configuration comparison
-- documented failure analysis
-
-The evaluation also shows that the system is not only functional, but improvable in a measurable way, which is a core sign of mature RAG and agent-system design.
