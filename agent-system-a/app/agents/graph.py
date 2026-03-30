@@ -1,11 +1,8 @@
 from __future__ import annotations
-
 from typing import Any, Literal
-
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import tool
 from langgraph.graph import END, StateGraph
-
 from app.agents.router import decide_routes, extract_entities
 from app.config import Settings
 from app.models.state import GraphState
@@ -21,7 +18,6 @@ ROUTE_TO_NODE = {
     "irrigation": "irrigation_bridge",
     "soil": "soil_bridge",
 }
-
 
 def _merge_unique_sources(*groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
     seen: set[tuple[str, str, str]] = set()
@@ -66,7 +62,7 @@ class FarmAdvisorGraph:
         if self.chat_model is not None and self.settings.enable_react_agent and self.settings.agent_pattern.lower() == "react":
             try:
                 return await self._react_answer(state)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 debug_trace = list(state.get("debug_trace", []))
                 debug_trace.append(f"ReAct unavailable, falling back to deterministic graph: {type(exc).__name__}")
                 fallback_state = {**state, "debug_trace": debug_trace}
@@ -238,7 +234,7 @@ class FarmAdvisorGraph:
         try:
             result = await self.clients.call_agent_b(state["message"], metadata, session_id=state.get("session_id"))
             debug_trace.append(f"Agent B irrigation service call succeeded (mode={result.get('mode', 'unknown')})")
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:  
             result = {"answer": "Agent System B was unavailable, so irrigation-specific calculations could not be completed.", "mode": "degraded", "structured_result": {"error": type(exc).__name__}}
             debug_trace.append(f"Agent B fallback used: {type(exc).__name__}")
         return {**state, "irrigation_result": result, "debug_trace": debug_trace}
@@ -249,7 +245,7 @@ class FarmAdvisorGraph:
         try:
             result = await self.clients.call_mcp_tool("analyze_bundle", payload)
             debug_trace.append("MCP bridge call succeeded")
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:  
             result = {"answer": "The soil and fertilizer tool was unavailable during this request.", "status": "degraded", "structured_result": {"error": type(exc).__name__}}
             debug_trace.append(f"MCP fallback used: {type(exc).__name__}")
         return {**state, "soil_result": result, "debug_trace": debug_trace}

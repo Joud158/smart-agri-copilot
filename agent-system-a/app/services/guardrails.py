@@ -1,8 +1,6 @@
 from __future__ import annotations
-
 import re
 from dataclasses import dataclass
-
 
 DISCLAIMER = (
     "This assistant is for decision support only. It does not replace a certified agronomist, "

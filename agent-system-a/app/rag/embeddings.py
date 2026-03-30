@@ -1,16 +1,14 @@
 from __future__ import annotations
-
 import hashlib
 import math
 import re
 from typing import Iterable
-
 from app.config import Settings
 
 try:
     from fastembed import TextEmbedding
-except Exception:  # noqa: BLE001
-    TextEmbedding = None  # type: ignore
+except Exception:  
+    TextEmbedding = None  
 
 
 class LocalDeterministicEmbeddings:
@@ -46,7 +44,7 @@ class LocalDeterministicEmbeddings:
 
     def embed_query(self, text: str) -> list[float]:
         return self._embed(text)
-
+    
 
 class FastEmbedAdapter:
     def __init__(self, model_name: str) -> None:

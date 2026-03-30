@@ -1,12 +1,9 @@
 from __future__ import annotations
-
 import math
 import re
 from typing import Any
-
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
-
 from app.config import Settings
 from app.rag.embeddings import build_embedding_provider
 
