@@ -166,7 +166,7 @@ Internal checks from Docker:
 ```bash
 docker compose exec agent-system-b python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8102/health').read().decode())"
 docker compose exec mcp-server python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8103/health').read().decode())"
-docker compose exec vector-db python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:6333/collections').read().decode())"
+docker compose exec agent-system-a python -c "import urllib.request; print(urllib.request.urlopen('http://vector-db:6333/collections').read().decode())"
 ```
 
 ## Evaluation Commands
