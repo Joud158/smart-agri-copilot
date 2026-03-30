@@ -1,6 +1,6 @@
 # Smart Agri Copilot
 
-Production-style multi-agent agriculture advisor built for the Gen AI Track final project.
+Production-style multi-agent agriculture advisor built for the Gen AI Track final project in Inmind.ai by Joud Senan.
 
 The system focuses on Mediterranean / Lebanon-relevant crop questions such as crop management, irrigation planning, pest reasoning, soil interpretation, fertilizer direction, and harvest-versus-hold market timing.
 
@@ -15,13 +15,6 @@ This project demonstrates the full architecture required by the rubric:
 - **Dockerized microservices**: each service in its own container and orchestrated with `docker-compose`.
 - **API layer**: FastAPI APIs, streaming on Agent A, session persistence, timeouts, and graceful fallback behavior.
 - **Evaluation**: 20-question test set, retrieval metrics, generation evaluation script, and configuration comparison script.
-
-## Users
-
-- farmers
-- agronomy students
-- extension support staff
-- demo evaluators who want to test agent routing and service boundaries
 
 ## Architecture Diagram
 
@@ -60,7 +53,7 @@ Primary mode:
 - **Google ADK runner** when `google-adk` and a working model/API key are available.
 
 Fallback mode:
-- deterministic irrigation/frost/spray planning so the project still runs reliably in low-resource grading environments.
+- deterministic irrigation/frost/spray planning so the project still runs reliably.
 
 This means the service stays online even if the LLM path is unavailable, while still showing a real second framework path in code.
 
@@ -84,8 +77,8 @@ Why this choice:
 Default embedding provider is `local_deterministic`.
 
 Why:
-- reproducible in offline grading environments
-- avoids external dependencies during demo
+- reproducible in offline environments
+- avoids external dependencies 
 - still supports evaluation and config comparison
 
 The design remains extensible to stronger embedding backends later by switching env vars.
@@ -125,18 +118,6 @@ Two Docker networks are used:
 - `internal-net`: Agent A, Agent B, MCP, and Qdrant
 
 Only the frontend and Agent A are exposed to the host. This better matches a production microservice layout where internal services are private.
-
-## Files You Should Present
-
-- `README.md`
-- `ARCHITECTURE.md`
-- `EVALUATION.md`
-- `docker-compose.yml`
-- each service `Dockerfile`
-- `scripts/ingest_to_qdrant.py`
-- `scripts/evaluate_retrieval.py`
-- `scripts/evaluate_generation.py`
-- `scripts/compare_configs.py`
 
 ## Setup
 
@@ -208,7 +189,7 @@ docker compose exec agent-system-a python /app/scripts/evaluate_generation.py
 docker compose exec agent-system-a python /app/scripts/compare_configs.py
 ```
 
-## Demo Query Ideas
+## Demo Query Examples
 
 - “My tomatoes in Bekaa are flowering. How sensitive are they to water stress?”
 - “Tomato leaves have white powdery patches. What should I check first?”
@@ -219,11 +200,10 @@ docker compose exec agent-system-a python /app/scripts/compare_configs.py
 ## Known Limitations
 
 - ADK execution depends on a working model/API key if you want the full Agent B LLM path.
-- The packaged generation evaluation uses a heuristic fallback by default; you can wire in a judge model later.
-- Voice bonus is not included in this build.
+- The packaged generation evaluation uses a heuristic fallback by default; you can wire in a judge model.
 
-## Security / Submission Hygiene
+## Security
 
 - real `.env` is intentionally excluded from the corrected package
-- use only `.env.example` with placeholders
+- use `.env.example`
 - session databases and runtime artifacts are gitignored
